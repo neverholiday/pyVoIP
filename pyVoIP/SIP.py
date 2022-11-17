@@ -373,7 +373,7 @@ class SIPMessage:
         headers_raw = headers.split(b"\r\n")
         heading = headers_raw.pop(0)
         check = str(heading.split(b" ")[0], "utf8")
-
+        print( f'check = {check}' )
         if check in self.SIPCompatibleVersions:
             self.type = SIPMessageType.RESPONSE
             self.parseSIPResponse(data)
@@ -930,6 +930,10 @@ class SIPClient:
                 )
         elif message.method == "ACK":
             return
+        elif message.method == 'OPTIONS':
+            print( 'parsing OPTIONS...' )
+            response = self.genOk(message)
+            self.out.sendto(response.encode("utf8"), (self.server, self.port))
         elif message.method == "CANCEL":
             # TODO: If callCallback is None, the call doesn't exist, 481
             self.callCallback(message)  # type: ignore
@@ -977,7 +981,7 @@ class SIPClient:
         return self.gen_call_id()
 
     def gen_call_id(self) -> str:
-        hash = hashlib.sha256(str(self.callID.next()).encode("utf8"))
+        hash = hashlib.sha256(str(self.callID.current()).encode("utf8"))
         hhash = hash.hexdigest()
         return f"{hhash[0:32]}@{self.myIP}:{self.myPort}"
 
@@ -1771,12 +1775,19 @@ class SIPClient:
                 self.recvLock.release()
                 time.sleep(5)
                 return self.register()
+            if response.status == SIPStatus(491):
+                self.parseMessage(response)
+                response = SIPMessage(self.s.recv(8192))
+
             else:
                 # TODO: determine if needed here
                 self.parseMessage(response)
 
+
         debug(response.summary())
         debug(response.raw)
+
+        print( '-----------------------------' )
 
         self.recvLock.release()
         if response.status == SIPStatus.OK:
