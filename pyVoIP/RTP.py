@@ -316,8 +316,8 @@ class RTPClient:
                     """
                     self.preference = assoc[m]
                     break
-            except Exception:
-                debug(f"{assoc[m]} cannot be selected as an audio codec")
+            except Exception as e:
+                debug(f"{assoc[m]} cannot be selected as an audio codec: error = {e}" )
 
         self.inIP = inIP
         self.inPort = inPort
@@ -395,7 +395,6 @@ class RTPClient:
             packet += self.outSSRC.to_bytes(4, byteorder="big")
             packet += payload
 
-            # debug(payload)
 
             try:
                 self.sout.sendto(packet, (self.outIP, self.outPort))

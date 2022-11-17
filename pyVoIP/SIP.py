@@ -373,7 +373,6 @@ class SIPMessage:
         headers_raw = headers.split(b"\r\n")
         heading = headers_raw.pop(0)
         check = str(heading.split(b" ")[0], "utf8")
-        print( f'check = {check}' )
         if check in self.SIPCompatibleVersions:
             self.type = SIPMessageType.RESPONSE
             self.parseSIPResponse(data)
@@ -740,7 +739,10 @@ class SIPMessage:
         if len(body) > 0:
             body_raw = body.split(b"\r\n")
             for x in body_raw:
-                i = str(x, "utf8").split("=")
+                if b'=' in x:
+                    i = str(x, "utf8").split("=")
+                elif b':' in x:
+                    i = str(x, "utf8").split(":")
                 if i != [""]:
                     handle(i[0], i[1])
 
@@ -892,6 +894,7 @@ class SIPClient:
             elif (
                 message.status == SIPStatus.TRYING
                 or message.status == SIPStatus.RINGING
+                or message.status == SIPStatus.NOT_ACCEPTABLE_HERE
             ):
                 pass
             else:
@@ -931,7 +934,6 @@ class SIPClient:
         elif message.method == "ACK":
             return
         elif message.method == 'OPTIONS':
-            print( 'parsing OPTIONS...' )
             response = self.genOk(message)
             self.out.sendto(response.encode("utf8"), (self.server, self.port))
         elif message.method == "CANCEL":
@@ -939,6 +941,8 @@ class SIPClient:
             self.callCallback(message)  # type: ignore
             response = self.genOk(message)
             self.out.sendto(response.encode("utf8"), (self.server, self.port))
+        elif message.method == "NOTIFY":
+            return
         else:
             debug("TODO: Add 400 Error on non processable request")
 
@@ -1591,8 +1595,18 @@ class SIPClient:
         self.recvLock.acquire()
         self.out.sendto(invite.encode("utf8"), (self.server, self.port))
         debug("Invited")
-        response = SIPMessage(self.s.recv(8192))
+        ready = select.select([self.out], [], [], self.register_timeout)
+        if ready[0]:
+            resp = self.s.recv(8192)
+        response = SIPMessage( resp )
 
+        print( '---------------------------' )
+        print( 'request = ' )
+        print( invite )
+        print( '+++++++++++++++++++++++++++' )
+        print( 'response = ' )
+        print( response.raw.decode() )
+        print( '---------------------------' )
         while (
             response.status != SIPStatus(401)
             and response.status != SIPStatus(100)
@@ -1601,7 +1615,16 @@ class SIPClient:
             if not self.NSD:
                 break
             self.parseMessage(response)
-            response = SIPMessage(self.s.recv(8192))
+            ready = select.select([self.out], [], [], self.register_timeout)
+            if ready[0]:
+                resp = self.s.recv(8192)
+            response = SIPMessage( resp )
+
+            print( '---------------------------' )
+            print( '+++++++++++++++++++++++++++' )
+            print( 'response = ' )
+            print( response.raw.decode() )
+            print( '---------------------------' )
 
         if response.status == SIPStatus(100) or response.status == SIPStatus(
             180
@@ -1629,6 +1652,7 @@ class SIPClient:
         )
 
         self.out.sendto(invite.encode("utf8"), (self.server, self.port))
+        
 
         self.recvLock.release()
 
@@ -1777,7 +1801,13 @@ class SIPClient:
                 return self.register()
             if response.status == SIPStatus(491):
                 self.parseMessage(response)
-                response = SIPMessage(self.s.recv(8192))
+                self.out.setblocking(False)
+                ready = select.select([self.out], [], [], self.register_timeout)
+                if ready[0]:
+                    resp = self.s.recv(8192)
+                else:
+                    raise TimeoutError("Registering on SIP Server timed out")
+                response = SIPMessage(resp)
 
             else:
                 # TODO: determine if needed here
@@ -1786,8 +1816,6 @@ class SIPClient:
 
         debug(response.summary())
         debug(response.raw)
-
-        print( '-----------------------------' )
 
         self.recvLock.release()
         if response.status == SIPStatus.OK:
