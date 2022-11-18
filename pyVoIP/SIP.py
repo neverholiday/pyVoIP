@@ -836,6 +836,8 @@ class SIPClient:
         self.registerThread: Optional[Timer] = None
         self.recvLock = Lock()
 
+        self.__ackAuth = ''
+
     def recv(self) -> None:
         while self.NSD:
             self.recvLock.acquire()
@@ -894,15 +896,19 @@ class SIPClient:
             elif (
                 message.status == SIPStatus.TRYING
                 or message.status == SIPStatus.RINGING
+                or message.status == SIPStatus.SESSION_PROGRESS
                 or message.status == SIPStatus.NOT_ACCEPTABLE_HERE
             ):
                 pass
             else:
+                print( 'ERROR!!' )
+                print( 'message.status = {}'.format( message.status ) )
                 debug(
                     "TODO: Add 500 Error on Receiving SIP Response:\r\n"
                     + message.summary(),
                     "TODO: Add 500 Error on Receiving SIP Response",
                 )
+                print( 'ERROR!!' )
             self.s.setblocking(True)
             return
         elif message.method == "INVITE":
@@ -1534,28 +1540,31 @@ class SIPClient:
 
         return byeRequest
 
-    def genAck(self, request: SIPMessage) -> str:
+    def genAck(self, request: SIPMessage, includeAuth=False) -> str:
         warnings.warn(
             "genAck is deprecated due to PEP8 compliance. "
             + "Use gen_ack instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.gen_ack(request)
+        return self.gen_ack(request, includeAuth)
 
-    def gen_ack(self, request: SIPMessage) -> str:
+    def gen_ack(self, request: SIPMessage, includeAuth=False) -> str:
         tag = self.tagLibrary[request.headers["Call-ID"]]
         t = request.headers["To"]["raw"].strip("<").strip(">")
         ackMessage = f"ACK {t} SIP/2.0\r\n"
         ackMessage += self._gen_response_via_header(request)
         ackMessage += "Max-Forwards: 70\r\n"
         ackMessage += (
-            f"To: {request.headers['To']['raw']};tag=" + f"{self.genTag()}\r\n"
+            f"To: {request.headers['To']['raw']};tag=" + f"{request.headers['To']['tag']}\r\n"
         )
+
         ackMessage += f"From: {request.headers['From']['raw']};tag={tag}\r\n"
         ackMessage += f"Call-ID: {request.headers['Call-ID']}\r\n"
         ackMessage += f"CSeq: {request.headers['CSeq']['check']} ACK\r\n"
         ackMessage += f"User-Agent: pyVoIP {pyVoIP.__version__}\r\n"
+        if includeAuth:
+            ackMessage += self.__ackAuth
         ackMessage += "Content-Length: 0\r\n\r\n"
 
         return ackMessage
@@ -1600,13 +1609,6 @@ class SIPClient:
             resp = self.s.recv(8192)
         response = SIPMessage( resp )
 
-        print( '---------------------------' )
-        print( 'request = ' )
-        print( invite )
-        print( '+++++++++++++++++++++++++++' )
-        print( 'response = ' )
-        print( response.raw.decode() )
-        print( '---------------------------' )
         while (
             response.status != SIPStatus(401)
             and response.status != SIPStatus(100)
@@ -1619,12 +1621,6 @@ class SIPClient:
             if ready[0]:
                 resp = self.s.recv(8192)
             response = SIPMessage( resp )
-
-            print( '---------------------------' )
-            print( '+++++++++++++++++++++++++++' )
-            print( 'response = ' )
-            print( response.raw.decode() )
-            print( '---------------------------' )
 
         if response.status == SIPStatus(100) or response.status == SIPStatus(
             180
@@ -1643,6 +1639,8 @@ class SIPClient:
             + f'transport=UDP",response="{str(authhash, "utf8")}",'
             + "algorithm=MD5\r\n"
         )
+
+        self.__ackAuth = auth
 
         invite = self.genInvite(
             number, str(sess_id), ms, sendtype, branch, call_id

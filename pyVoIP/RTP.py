@@ -396,14 +396,14 @@ class RTPClient:
             packet += payload
 
 
-            try:
-                self.sout.sendto(packet, (self.outIP, self.outPort))
-            except OSError:
-                warnings.warn(
-                    "RTP Packet failed to send!",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
+            # try:
+            #     self.sout.sendto(packet, (self.outIP, self.outPort))
+            # except OSError:
+            #     warnings.warn(
+            #         "RTP Packet failed to send!",
+            #         RuntimeWarning,
+            #         stacklevel=2,
+            #     )
 
             self.outSequence += 1
             self.outTimestamp += len(payload)
@@ -456,10 +456,17 @@ class RTPClient:
             return self.encodePCMU(payload)
         elif self.preference == PayloadType.PCMA:
             return self.encodePCMA(payload)
+        elif self.preference == PayloadType.GSM:
+            return self.encode_gsm( payload )
         else:
             raise RTPParseError(
                 "Unsupported codec (encode): " + str(self.preference)
             )
+
+    def encode_gsm( self, packet: bytes ) -> bytes:
+        packet = audioop.bias(packet, 1, 128)
+        # packet = audioop.lin2alaw(packet, 1)
+        return packet
 
     def parsePCMU(self, packet: RTPMessage) -> None:
         warnings.warn(

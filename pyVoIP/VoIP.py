@@ -515,14 +515,17 @@ class VoIPPhone:
         )
 
     def callback(self, request: SIP.SIPMessage) -> None:
+        print( 'callback to call!!!' )
         # debug("Callback: "+request.summary())
         if request.type == pyVoIP.SIP.SIPMessageType.MESSAGE:
+            print( '    request.method = {}'.format( request.method ) )
             # debug("This is a message")
             if request.method == "INVITE":
                 self._callback_MSG_Invite(request)
             elif request.method == "BYE":
                 self._callback_MSG_Bye(request)
         else:
+            print( '    request.status = {}'.format( request.status ) )
             if request.status == SIP.SIPStatus.OK:
                 self._callback_RESP_OK(request)
             elif request.status == SIP.SIPStatus.NOT_FOUND:
@@ -604,7 +607,7 @@ class VoIPPhone:
         # issue here or your invite is wrong.
         self.calls[call_id].answered(request)
         debug("Answered")
-        ack = self.sip.genAck(request)
+        ack = self.sip.genAck(request, includeAuth=True)
         self.sip.out.sendto(ack.encode("utf8"), (self.server, self.port))
 
     def _callback_RESP_NotFound(self, request: SIP.SIPMessage) -> None:
@@ -618,7 +621,7 @@ class VoIPPhone:
             )
         self.calls[call_id].notFound(request)
         debug("Terminating Call")
-        ack = self.sip.genAck(request)
+        ack = self.sip.genAck(request, includeAuth=True)
         self.sip.out.sendto(ack.encode("utf8"), (self.server, self.port))
 
     def _callback_RESP_Unavailable(self, request: SIP.SIPMessage) -> None:
@@ -632,7 +635,7 @@ class VoIPPhone:
             )
         self.calls[call_id].unavailable(request)
         debug("Terminating Call")
-        ack = self.sip.genAck(request)
+        ack = self.sip.genAck(request, includeAuth=True)
         self.sip.out.sendto(ack.encode("utf8"), (self.server, self.port))
 
     def _create_Call(self, request: SIP.SIPMessage, sess_id: int) -> None:
