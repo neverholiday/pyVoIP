@@ -396,14 +396,14 @@ class RTPClient:
             packet += payload
 
 
-            # try:
-            #     self.sout.sendto(packet, (self.outIP, self.outPort))
-            # except OSError:
-            #     warnings.warn(
-            #         "RTP Packet failed to send!",
-            #         RuntimeWarning,
-            #         stacklevel=2,
-            #     )
+            try:
+                self.sout.sendto(packet, (self.outIP, self.outPort))
+            except OSError:
+                warnings.warn(
+                    "RTP Packet failed to send!",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
             self.outSequence += 1
             self.outTimestamp += len(payload)

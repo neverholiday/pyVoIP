@@ -948,7 +948,8 @@ class SIPClient:
             response = self.genOk(message)
             self.out.sendto(response.encode("utf8"), (self.server, self.port))
         elif message.method == "NOTIFY":
-            return
+            response = self.genOk(message)
+            self.out.sendto(response.encode("utf8"), (self.server, self.port))
         else:
             debug("TODO: Add 400 Error on non processable request")
 
@@ -1146,18 +1147,17 @@ class SIPClient:
         regRequest += (
             "Contact: "
             + f"<sip:{self.username}@{self.myIP}:{self.myPort};"
-            + "transport=UDP>;+sip.instance="
-            + f'"<urn:uuid:{self.urnUUID}>"\r\n'
+            + f"transport=UDP>;expires={self.default_expires if not deregister else 0}\r\n"
         )
         regRequest += f'Allow: {(", ".join(pyVoIP.SIPCompatibleMethods))}\r\n'
         regRequest += "Max-Forwards: 70\r\n"
         regRequest += "Allow-Events: org.3gpp.nwinitdereg\r\n"
         regRequest += f"User-Agent: pyVoIP {pyVoIP.__version__}\r\n"
         # Supported: 100rel, replaces, from-change, gruu
-        regRequest += (
-            "Expires: "
-            + f"{self.default_expires if not deregister else 0}\r\n"
-        )
+        # regRequest += (
+        #     "Expires: "
+        #     + f"{self.default_expires if not deregister else 0}\r\n"
+        # )
         regRequest += "Content-Length: 0"
         regRequest += "\r\n\r\n"
 
@@ -1236,8 +1236,7 @@ class SIPClient:
         regRequest += (
             "Contact: "
             + f"<sip:{self.username}@{self.myIP}:{self.myPort};"
-            + "transport=UDP>;+sip.instance="
-            + f'"<urn:uuid:{self.urnUUID}>"\r\n'
+            + f"transport=UDP>;expires={self.default_expires if not deregister else 0}\r\n"
         )
         regRequest += f'Allow: {(", ".join(pyVoIP.SIPCompatibleMethods))}\r\n'
         regRequest += "Max-Forwards: 70\r\n"
@@ -1662,6 +1661,9 @@ class SIPClient:
         self.out.sendto(message.encode("utf8"), (self.server, self.port))
 
     def deregister(self) -> bool:
+
+        print( 'deregister...' )
+
         self.recvLock.acquire()
         firstRequest = self.genFirstRequest(deregister=True)
         self.out.sendto(firstRequest.encode("utf8"), (self.server, self.port))
@@ -1674,12 +1676,26 @@ class SIPClient:
         else:
             raise TimeoutError("Deregistering on SIP Server timed out")
 
+        print( '-------------------------------------------------' )
+        print( 'firstRequest = ' )
+        print( firstRequest )
+        print( '-------------------------------------------------' )
+
         response = SIPMessage(resp)
         response = self.trying_timeout_check(response)
-
+        print( '-------------------------------------------------' )
+        print( 'response = ' )
+        print( response.raw.decode() )
+        print( '-------------------------------------------------' )
         if response.status == SIPStatus(401):
             # Unauthorized, likely due to being password protected.
             regRequest = self.genRegister(response, deregister=True)
+            
+            print( '-------------------------------------------------' )
+            print( 'regRequest = ' )
+            print( regRequest )
+            print( '-------------------------------------------------' )
+            
             self.out.sendto(
                 regRequest.encode("utf8"), (self.server, self.port)
             )
@@ -1687,6 +1703,13 @@ class SIPClient:
             if ready[0]:
                 resp = self.s.recv(8192)
                 response = SIPMessage(resp)
+            
+                print( '-------------------------------------------------' )
+                print( 'response = ' )
+                print( response.raw.decode() )
+                print( '-------------------------------------------------' )
+            
+            
                 if response.status == SIPStatus(401):
                     # At this point, it's reasonable to assume that
                     # this is caused by invalid credentials.
@@ -1730,8 +1753,18 @@ class SIPClient:
         else:
             raise TimeoutError("Registering on SIP Server timed out")
 
+
+        print( '-------------------------------------------------' )
+        print( 'firstRequest = ' )
+        print( firstRequest )
+        print( '-------------------------------------------------' )
+
         response = SIPMessage(resp)
         response = self.trying_timeout_check(response)
+        print( '-------------------------------------------------' )
+        print( 'response = ' )
+        print( response.raw.decode() )
+        print( '-------------------------------------------------' )
         first_response = response
 
         if response.status == SIPStatus(400):
@@ -1744,6 +1777,12 @@ class SIPClient:
         if response.status == SIPStatus(401):
             # Unauthorized, likely due to being password protected.
             regRequest = self.genRegister(response)
+            
+            print( '-------------------------------------------------' )
+            print( 'regRequest = ' )
+            print( regRequest )
+            print( '-------------------------------------------------' )
+            
             self.out.sendto(
                 regRequest.encode("utf8"), (self.server, self.port)
             )
@@ -1751,6 +1790,13 @@ class SIPClient:
             if ready[0]:
                 resp = self.s.recv(8192)
                 response = SIPMessage(resp)
+
+                print( '-------------------------------------------------' )
+                print( 'response = ' )
+                print( response.raw.decode() )
+                print( '-------------------------------------------------' )
+
+
                 response = self.trying_timeout_check(response)
                 if response.status == SIPStatus(401):
                     # At this point, it's reasonable to assume that
