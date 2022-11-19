@@ -897,6 +897,9 @@ class SIPClient:
             elif message.status == SIPStatus.SERVICE_UNAVAILABLE:
                 if self.callCallback is not None:
                     self.callCallback(message)
+            elif message.status == SIPStatus.BUSY_HERE:
+                if self.callCallback is not None:
+                    self.callCallback(message)
             elif (
                 message.status == SIPStatus.TRYING
                 or message.status == SIPStatus.RINGING
@@ -1311,7 +1314,7 @@ class SIPClient:
             + f"{request.headers['From']['tag']}\r\n"
         )
         okResponse += (
-            f"To: {request.headers['To']['raw']};tag=" + f"{self.genTag()}\r\n"
+            f"To: {request.headers['To']['raw']};tag=" + f"{request.headers['To']['tag']}\r\n"
         )
         okResponse += f"Call-ID: {request.headers['Call-ID']}\r\n"
         okResponse += (
@@ -1519,10 +1522,6 @@ class SIPClient:
         fromH = request.headers["From"]["raw"]
         toH = request.headers["To"]["raw"]
 
-        print( '--------------------------------------' )
-        print( request.raw.decode() )
-        print( '--------------------------------------' )
-
         if request.headers["From"]["tag"] == tag:
             byeRequest += f"From: {fromH};tag={tag}\r\n"
             if request.headers["To"]["tag"] != "":
@@ -1671,8 +1670,6 @@ class SIPClient:
 
     def deregister(self) -> bool:
 
-        print( 'deregister...' )
-
         self.recvLock.acquire()
         firstRequest = self.genFirstRequest(deregister=True)
         self.out.sendto(firstRequest.encode("utf8"), (self.server, self.port))
@@ -1685,25 +1682,11 @@ class SIPClient:
         else:
             raise TimeoutError("Deregistering on SIP Server timed out")
 
-        print( '-------------------------------------------------' )
-        print( 'firstRequest = ' )
-        print( firstRequest )
-        print( '-------------------------------------------------' )
-
         response = SIPMessage(resp)
         response = self.trying_timeout_check(response)
-        print( '-------------------------------------------------' )
-        print( 'response = ' )
-        print( response.raw.decode() )
-        print( '-------------------------------------------------' )
         if response.status == SIPStatus(401):
             # Unauthorized, likely due to being password protected.
             regRequest = self.genRegister(response, deregister=True)
-            
-            print( '-------------------------------------------------' )
-            print( 'regRequest = ' )
-            print( regRequest )
-            print( '-------------------------------------------------' )
             
             self.out.sendto(
                 regRequest.encode("utf8"), (self.server, self.port)
@@ -1712,12 +1695,6 @@ class SIPClient:
             if ready[0]:
                 resp = self.s.recv(8192)
                 response = SIPMessage(resp)
-            
-                print( '-------------------------------------------------' )
-                print( 'response = ' )
-                print( response.raw.decode() )
-                print( '-------------------------------------------------' )
-            
             
                 if response.status == SIPStatus(401):
                     # At this point, it's reasonable to assume that
@@ -1762,18 +1739,8 @@ class SIPClient:
         else:
             raise TimeoutError("Registering on SIP Server timed out")
 
-
-        print( '-------------------------------------------------' )
-        print( 'firstRequest = ' )
-        print( firstRequest )
-        print( '-------------------------------------------------' )
-
         response = SIPMessage(resp)
         response = self.trying_timeout_check(response)
-        print( '-------------------------------------------------' )
-        print( 'response = ' )
-        print( response.raw.decode() )
-        print( '-------------------------------------------------' )
         first_response = response
 
         if response.status == SIPStatus(400):
@@ -1787,11 +1754,6 @@ class SIPClient:
             # Unauthorized, likely due to being password protected.
             regRequest = self.genRegister(response)
             
-            print( '-------------------------------------------------' )
-            print( 'regRequest = ' )
-            print( regRequest )
-            print( '-------------------------------------------------' )
-            
             self.out.sendto(
                 regRequest.encode("utf8"), (self.server, self.port)
             )
@@ -1799,12 +1761,6 @@ class SIPClient:
             if ready[0]:
                 resp = self.s.recv(8192)
                 response = SIPMessage(resp)
-
-                print( '-------------------------------------------------' )
-                print( 'response = ' )
-                print( response.raw.decode() )
-                print( '-------------------------------------------------' )
-
 
                 response = self.trying_timeout_check(response)
                 if response.status == SIPStatus(401):

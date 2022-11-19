@@ -532,6 +532,8 @@ class VoIPPhone:
                 self._callback_RESP_NotFound(request)
             elif request.status == SIP.SIPStatus.SERVICE_UNAVAILABLE:
                 self._callback_RESP_Unavailable(request)
+            elif request.status == SIP.SIPStatus.BUSY_HERE:
+                self._callback_RESP_BusyHere(request)
 
     def getStatus(self) -> PhoneStatus:
         warnings.warn(
@@ -635,6 +637,21 @@ class VoIPPhone:
             )
         self.calls[call_id].unavailable(request)
         debug("Terminating Call")
+        ack = self.sip.genAck(request, includeAuth=True)
+        self.sip.out.sendto(ack.encode("utf8"), (self.server, self.port))
+
+    def _callback_RESP_BusyHere(self, request: SIP.SIPMessage) -> None:
+        debug("BUSY HERE recieved")
+        call_id = request.headers["Call-ID"]
+        if call_id not in self.calls:
+            debug("Unknown/No call")
+            return
+
+        # TODO: may be implement 
+        self.calls[call_id].unavailable(request)
+        debug("Terminating Call")
+        # TODO: Somehow never is reached. Find out if you have a network
+        # issue here or your invite is wrong.
         ack = self.sip.genAck(request, includeAuth=True)
         self.sip.out.sendto(ack.encode("utf8"), (self.server, self.port))
 
