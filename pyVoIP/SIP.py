@@ -11,6 +11,10 @@ import uuid
 import select
 import warnings
 
+import time
+
+
+uniqueCounter = int( time.time() )
 
 if TYPE_CHECKING:
     from pyVoIP import RTP
@@ -39,7 +43,7 @@ class SIPParseError(Exception):
 
 
 class Counter:
-    def __init__(self, start: int = 1):
+    def __init__(self, start: int = uniqueCounter):
         self.x = start
 
     def count(self) -> int:
@@ -821,7 +825,7 @@ class SIPClient:
 
         self.myPort = myPort
 
-        self.default_expires = 120
+        self.default_expires = 3600
         self.register_timeout = 30
 
         self.inviteCounter = Counter()
@@ -1151,7 +1155,7 @@ class SIPClient:
         )
         regRequest += f'Allow: {(", ".join(pyVoIP.SIPCompatibleMethods))}\r\n'
         regRequest += "Max-Forwards: 70\r\n"
-        regRequest += "Allow-Events: org.3gpp.nwinitdereg\r\n"
+        # regRequest += "Allow-Events: org.3gpp.nwinitdereg\r\n"
         regRequest += f"User-Agent: pyVoIP {pyVoIP.__version__}\r\n"
         # Supported: 100rel, replaces, from-change, gruu
         # regRequest += (
@@ -1240,12 +1244,12 @@ class SIPClient:
         )
         regRequest += f'Allow: {(", ".join(pyVoIP.SIPCompatibleMethods))}\r\n'
         regRequest += "Max-Forwards: 70\r\n"
-        regRequest += "Allow-Events: org.3gpp.nwinitdereg\r\n"
+        # regRequest += "Allow-Events: org.3gpp.nwinitdereg\r\n"
         regRequest += f"User-Agent: pyVoIP {pyVoIP.__version__}\r\n"
-        regRequest += (
-            "Expires: "
-            + f"{self.default_expires if not deregister else 0}\r\n"
-        )
+        # regRequest += (
+        #     "Expires: "
+        #     + f"{self.default_expires if not deregister else 0}\r\n"
+        # )
         regRequest += (
             f'Authorization: Digest username="{self.username}",'
             + f'realm="{realm}",nonce="{nonce}",'
@@ -1514,6 +1518,11 @@ class SIPClient:
         byeRequest += self._gen_response_via_header(request)
         fromH = request.headers["From"]["raw"]
         toH = request.headers["To"]["raw"]
+
+        print( '--------------------------------------' )
+        print( request.raw.decode() )
+        print( '--------------------------------------' )
+
         if request.headers["From"]["tag"] == tag:
             byeRequest += f"From: {fromH};tag={tag}\r\n"
             if request.headers["To"]["tag"] != "":
